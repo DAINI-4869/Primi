@@ -1,0 +1,230 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+			;main_ver0.9.hsp
+			;音楽ゲーム(文化祭用)
+	
+/*
+
+H30 9/7
+	making中表示
+	bar及びInfoの調整
+
+ */
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+dim ked3getfpsycon,2 : i = 0						//詳しくはhttp://hsp.tv/play/pforum.php?mode=pastwch&num=60163参照
+#module
+#deffunc getstick var howkey,int coad				//使うかはわからない(多分使わない)
+getkey howkey,coad
+if howkey=0:keycon(coad)=0
+if howkey=1{
+if keycon(coad)=1:howkey=0
+keycon(coad)=1
+}
+return
+#global
+
+
+#packopt name "make_var0"
+#pack "d3m.hsp"
+#pack "select_music_make.hsp"
+;#pack "back.png"
+;#pack "many_bar.png"
+
+#include "d3m.hsp"						//fps表示の定義ファイル
+
+#include "select_music_make.hsp"
+
+chgdisp 1,1280,1024						//解像度変更(フルスクリーン)
+
+buffer 1, 1280, 1024, 0					//背景読み込み
+	celload "com\\back.png", 1, 0
+
+buffer 2
+	celload "com\\many_bar.png", 2, 0		//バー読み込み
+
+bgscr 0, 1280, 1024, 0, 0, 0			//メイン画面表示
+	gsel 0, 1							;開発途中は1、正規は2がよろし
+	gmode 0
+	celput 1,0							//背景表示
+
+mci "open "+music_name+" alias main"		//曲のパスを"main"という文字列に置き換える
+mci "set main time format ms"											//曲の再生時間の表現フォーマットをms(millisecond)で表示する
+mci "status main length"												//局の長さを取得
+size = stat
+
+dim save_r, size
+dim save_g, size
+dim save_b, size
+dim save_y, size
+red_t 	= 0 : green_t = 0 : blue_t = 0 : yellow_t = 0
+x_red 		= 0		: y_red 	= 750-32
+x_green 	= 256	: y_green 	= 750-32
+x_blue 		= 512	: y_blue 	= 750-32
+x_yellow 	= 768	: y_yellow 	= 750-32
+write_r		= "" : write_g		= "" : write_b		= "" : write_y		= ""
+cmaking = 0
+
+mci "play main"
+mci "status main position"
+time_b = stat
+
+
+
+*main
+repeat
+redraw 0								//バッファ読み取り
+
+fps = d3getfps()
+	
+	gsel 0								//メインスクリーンに描写選択
+	pos 0, 0							//背景の座標設定
+	gmode 0
+	celput 1,0							//背景描写
+
+	mci "status main position"
+	time_n = stat
+	gosub *key
+	
+	;if (cnt\2 == 0) : gosub *beat_draw
+
+	if (time_n == size) : goto *write_note
+
+	pos 1024,100
+	color 0,0,255
+	font msgothic,50
+	mes "FPS:"+fps
+	mes time_n
+	
+	if (cmaking >= 25){
+		pos 200,100
+		font msgothic,120
+		color 255,0,0
+		mes "Notes Making"
+		if (cmaking >= 50){
+			cmaking = 0
+		}
+	}
+	cmaking++
+	
+redraw 1
+await 60000/tempo/beat
+loop
+
+
+*key
+getstick again, 82
+getstick red_detect	, 65
+getstick green_detect	, 83
+getstick blue_detect	, 75
+getstick yellow_detect, 76
+
+	if (again & 1){
+		exec "m.exe"
+		end
+	}
+	
+	if (red_detect & 1){
+		gosub *red_bar
+		save_r(red_t) = time_n
+		red_t++
+	}
+	if (green_detect & 1){
+		gosub *green_bar
+		save_g(green_t) = time_n
+		green_t++
+	}
+	if (blue_detect & 1){
+		gosub *blue_bar
+		save_b(blue_t) = time_n
+		blue_t++
+	}
+	if (yellow_detect & 1){
+		gosub *yellow_bar
+		save_y(yellow_t) = time_n
+		yellow_t++
+	}
+	
+return
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//													ノーツ表示																//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+*red_bar
+	pos x_red, y_red									//ノーツの座標を設定
+	gmode 2
+	gcopy 2, 0, 0, 256, 64								//ノーツを表示
+
+return
+
+///////////////////////////////////////////////以下同じ////////////////////////////////////////////////
+
+*green_bar
+	pos x_green, y_green
+	gmode 2
+	gcopy 2, 0, 64, 256, 64
+
+return
+
+*blue_bar
+	pos x_blue, y_blue
+	gmode 2
+	gcopy 2, 0, 128, 256, 64
+
+return
+
+*yellow_bar
+	pos x_yellow, y_yellow
+	gmode 2
+	gcopy 2, 0, 192, 256, 64
+
+return
+
+
+
+*write_note
+repeat red_t
+	notesel write_r
+	noteadd str(save_r(cnt)), cnt, 1
+loop
+
+repeat green_t
+	notesel write_g
+	noteadd str(save_g(cnt)), cnt, 1
+loop
+
+repeat blue_t
+	notesel write_b
+	noteadd str(save_b(cnt)), cnt, 1
+loop
+
+repeat yellow_t
+	notesel write_y
+	noteadd str(save_y(cnt)), cnt, 1
+loop
+
+dirlist dir, music_n
+if (stat == 0){
+	mkdir music_n
+}
+
+dirlist dir, ""+music_n+"\\"+diff+""
+if (stat == 0){
+	mkdir ""+music_n+"\\"+diff+""
+}
+
+notesel write_r : notesave music_n+"\\"+diff+"\\"+music_n+"_r"+".dat"
+notesel write_g : notesave music_n+"\\"+diff+"\\"+music_n+"_g"+".dat"
+notesel write_b : notesave music_n+"\\"+diff+"\\"+music_n+"_b"+".dat"
+notesel write_y : notesave music_n+"\\"+diff+"\\"+music_n+"_y"+".dat"
+
+notesel bpm : noteadd str(tempo), 0, 1
+notesel bpm : notesave music_n+"\\bpm.dat"
+
+dialog "作成終了致しました", 0
+
+end

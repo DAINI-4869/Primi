@@ -1,0 +1,68 @@
+gsel 0, -1
+	exist "com\\chk_p.dat"
+	if (strsize == -1) {
+		needs = 0
+	}else{
+notesel needs
+noteload "com\\chk_p.dat"
+}
+if (needs == 0){
+
+
+screen 0, 600, 360
+
+title "よく読んで…"
+notesel how_to
+noteload "com\\how_to_p.dat"
+mesbox how_to, 600, 300, 4
+objsize 600,30
+chkbox "以後この文章を表示しない", chk
+button "譜面選択画面へ",*get_info
+stop
+
+*get_info
+chk = str(chk)
+notesel chk
+	exist "com\\chk_p.dat"
+	if (strsize == -1) {
+		notesave "com\\chk_p.dat"
+	}else{
+delete "com\\chk_p.dat"
+notesave "com\\chk_p.dat"
+}
+/*
+#uselib "kernel32"
+#func SetFileAttributes "SetFileAttributesA" str, int
+															kernel32.libが無いとエラーになるため
+;	（第2パラのモード指定はfxaset命令の説明をそのまま参照）
+	SetFileAttributes "com\\chk.dat", $2
+*/
+}
+
+screen 0, 250, 200
+cls 4
+color 255,0,0
+mes "楽曲を選ぶドン"
+wait 50
+dialog "mp3;*.wav;*.mid", 16
+music_name = refstr
+music_file = getpath(refstr,8+1)
+music_n    = getpath(refstr,8+1)
+;extension  = getpath(refstr,2)
+cls 4
+color 255,0,0
+mes "難易度を選ぶドン"
+objsize 80,24
+combox diff, 100, "EASY\nNORMAL\nHARD\nLUNATIC\nMASTER"
+mes "速さを選ぶドン"
+kos = 2
+combox kos, 100, "激遅\n遅い\n普通\n早い\nCRAZY"
+;mes "スクリーンの下の方が見えない\n場合は300ぐらい入れて"
+mes "詳細設定(変更非推奨)"
+screen_size = "0"
+input screen_size
+objsize 100, 30
+button "スタート",*play_start
+stop
+
+*play_start

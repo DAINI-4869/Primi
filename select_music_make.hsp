@@ -1,0 +1,80 @@
+gsel 0, -1
+	exist "com\\chk.dat"
+	if (strsize == -1) {
+		needs = 0
+	}else{
+notesel needs
+noteload "com\\chk.dat"
+}
+if (needs == 0){
+
+
+	screen 0, 600, 360
+
+	title "よく読んで…"
+	notesel how_to
+	noteload "com\\how_to.dat"
+	mesbox how_to, 600, 300, 4
+	objsize 600,30
+	chkbox "以後この文章を表示しない", chk
+	button "曲選択画面へ",*making
+	stop
+
+*making
+	chk = str(chk)
+	notesel chk
+	exist "com\\chk.dat"
+	if (strsize == -1) {
+		notesave "com\\chk.dat"
+	}else{
+		delete "com\\chk.dat"
+		notesave "com\\chk.dat"
+	}
+/*
+	#uselib "kernel32"
+	#func SetFileAttributes "SetFileAttributesA" str, int
+															kernel32.libが無いとエラーになるため
+;	（第2パラのモード指定はfxaset命令の説明をそのまま参照）
+		SetFileAttributes "com\\chk.dat", $2
+*/
+}
+
+dialog "mp3;*.wav;*.mid;",16,"すべてのファイル"
+music_name	= refstr
+music_n		= getpath(refstr,8+1)
+
+tempo 	= ""
+beat	= "16"
+
+dirlist bp, music_n
+if (stat ! 0){
+	dirlist dir, music_n+"\\bpm.dat"
+	if (stat ! 0){
+		notesel tempo : noteload music_n+"\\bpm.dat"
+	}
+}
+
+screen 0, 400, 250
+mes "BPMを入力してね"
+input tempo
+mes "最低拍子を入力してね"
+input beat
+mes "難易度を選択してね？"
+combox diff, 100, "EASY\nNORMAL\nHARD\nLUNATIC\nMASTER"
+mes "スクリーンの下の方が見えない\n場合は300ぐらい入れといて"
+screen_size = "0"
+input screen_size
+pos 0, 190
+objsize 400, 60
+button "作成開始",*start
+stop
+
+*start
+tempo	= int(tempo)
+beat	= int(beat)
+
+dirlist dir, music_n
+if (stat ! 0){
+	dirlist dir, ""+music_n+"\\"+diff+""
+	if (stat ! 0) : dialog "既存の難易度の譜面ファイルを削除してから\n再度作成しなおして下さい", 1 : end
+}

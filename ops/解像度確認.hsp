@@ -1,0 +1,42 @@
+#uselib "user32.dll"
+#cfunc EnumDisplaySettings "EnumDisplaySettingsA" int, int, var
+
+screen 0,640,480,0,0,0
+dim DevMode,44
+modelist_txt=""
+mode_max=0
+repeat 
+	if EnumDisplaySettings(0,cnt,DevMode)=0 {break}
+		if DevMode(26)=32 {
+			DispWidth(mode_max)=DevMode(27)
+			DispHeight(mode_max)=DevMode(28)
+			modelist_txt+=""+DispWidth(mode_max)+" x "+DispHeight(mode_max)+"\n"
+			mode_max++
+	}
+loop
+
+title "32ビット色で変更できるモード数 "+mode_max
+objsize 150,300
+	
+listbox index,,modelist_txt
+pos 200,0
+objsize 100,20
+
+button "解像度変更",*_disp
+button "戻す",*_ret
+button "終了",*_exit
+
+stop
+
+*_disp
+chgdisp 1,DispWidth(index),DispHeight(index)
+if stat=1 :dialog "カラーモードの変更はできなかったが、\n解像度の変更は正常に行なわれた。":stop
+if stat=2 :dialog "解像度の変更ができなかった。":stop
+stop
+
+*_ret
+chgdisp 0
+stop
+
+*_exit
+end

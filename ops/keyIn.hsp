@@ -1,0 +1,25 @@
+;Zキーが押された瞬間・離された瞬間を検出するサンプル
+*main
+	await
+
+	;Zキーが押されているかどうかを取得
+	getkey key, 'Z'
+	keypress_z = key
+
+	;★ここから★
+	;Zキーが押された瞬間・離された瞬間を検出
+	;キーの押下状態が変わって、かつ現在押されていれば、押された瞬間
+	keydown_z = key ^ key_prev & key
+
+	;キーの押下状態が変わって、かつ現在押されていなければ、離された瞬間
+	keyup_z   = key ^ key_prev & key_prev
+	;★ここまで★
+
+	key_prev = key
+
+	;取得した値を表示
+	if keydown_z  : mes "Zキーが押されました。"
+	;if keypress_z : mes "Zキーが押されています……"
+	if keyup_z    : mes "Zキーが離されました。"
+
+	goto *main

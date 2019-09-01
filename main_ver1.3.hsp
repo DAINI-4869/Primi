@@ -1,0 +1,754 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+			;main_ver1.3.hsp
+			;音楽ゲーム(文化祭用)
+	
+/*
+
+H28 8/3
+	tasks
+	判定(表示&SCORE)、効果音(SE)の付加、曲の選択画面(UI)、COMBO数、画像、判定ラインの改造
+	
+	9/5
+	多段式判定処理アルゴリズム(仮)作成完了
+	次にすることは、判定時の評価画像(COOLとか)、SE、選択画面、判定ラインの改造
+	もしできるなら、毎拍ごとに流れる小節線をだす
+	
+	NEW!!
+	SelectScreen, RisultScreen
+
+H30 9/7
+	bar周辺とInfoの改善
+	リザルト画面でMAXCOMBOが最終COMBOになっているバグを修正
+	detect_ui がbarのdetectより前に来ていたのでcombo表示がが0になるバグを修正
+	en関係の初期表示秒数を正した、よって判定のへんな引き算を無効にした
+	
+	9/8
+	getkeyで押した瞬間、押し中、離すを表現できることに気づいたのでgetstickを廃止
+	barを薄くした(64→32)
+	判定の位置を変えた
+	barの幅を変数化した
+ */
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#packopt name "play_var0"
+#pack "d3m.hsp"
+;#pack "hspext.as"
+#pack "select_music_main.hsp"
+;#pack "back.png"
+;#pack "many_bar.png"
+
+
+#include "d3m.hsp"						//fps表示の定義ファイル
+
+#include "select_music_main.hsp"
+
+
+;chgdisp 1,1280,1024						//解像度変更(フルスクリーン)
+
+buffer 1, 1280, 1024, 0					//背景読み込み
+	celload "com\\back.png", 1, 0
+
+buffer 2
+	celload "com\\many_bar.png", 2, 0		//バー読み込み
+
+bgscr 0, 1280, 1024, 0, 0, 0-int(screen_size)			//メイン画面表示(下が見にくいので位置を調整中)
+	gsel 0, 1							;開発途中は1、正規は2がよろし
+	celput 1,0							//背景表示
+
+mci "open "+music_name+" alias main"					//曲のパスを"main"という文字列に置き換える
+mci "set main time format ms"							//曲の再生時間の表現フォーマットをms(millisecond)で表示する
+mci "status main length"								//曲の長さを取得
+music_size = stat
+
+mci "open com\\suzu.mp3 alias se"
+
+fps		= 0								//FPSを入れる変数
+score	= 0								//SCOREを入れる変数
+bar_width	= 32
+detect_line = 1024 - bar_width/2		//判定ラインのY座標
+
+dim y_speed, 5							//y軸の速さを入れるための配列変数
+y_speed(0) = 1
+y_speed(1) = 2
+y_speed(2) = 3
+y_speed(3) = 4
+y_speed(4) = 5					//kind_of_speed早さを選ぶための変数(曲を選択するプログラムに追記予定)
+
+y_spk	=	2					//乗数
+
+detect_ef	=	0				//detectEffect
+combo		=	0
+max_combo	=	0
+
+notesel i_red											//譜面ファイルをi_red(information_red)に入れる
+
+noteload ""+music_file+"\\"+diff+"\\"+music_n+"_r.dat"	//譜面ファイル読み取り(red)
+size_r = notemax										//行数をsizeに入れる
+
+dim	 ensure_r			,size_r				//ensure_redは赤ノーツを動かしける続けるための配列変数
+dim  y_red				,size_r				//Y座標を各文字ごとに配列設定する
+dim  red_en				,size_r				//red_encount(red_en)ノーツの現れるタイミング
+sdim red_notes_detect_	,size_r				//ノーツの判定ラインに来るタイミング(datファイル内の数字で文字列)
+dim  red_notes_detect	,size_r
+
+repeat size_r
+	gosub *del_red						//座標位置初期化
+	noteget red_notes_detect_(cnt), cnt				//red_en_(red_enﾀﾞｯｼｭ)に一行ごとに文字を入れていく
+	red_notes_detect(cnt) = int(red_notes_detect_(cnt))
+	red_en(cnt) = red_notes_detect(cnt) - (detect_line + bar_width) / y_speed(kos) *y_spk//red_en_を整数型に変換しそこから判定ラインを速さで割ったものを引く
+loop
+
+///////////////////////////////////////////////以下同じ////////////////////////////////////////////////
+notesel i_green
+noteload ""+music_n+"\\"+diff+"\\"+music_n+"_g.dat"
+size_g = notemax
+
+dim  ensure_g				,size_g
+dim  y_greenn				,size_g
+dim  green_en				,size_g
+sdim green_notes_detect_	,size_g
+dim  green_notes_detect		,size_g
+
+repeat size_g
+	gosub *del_green
+	noteget green_notes_detect_(cnt), cnt
+	green_notes_detect(cnt) = int(green_notes_detect_(cnt))
+	green_en(cnt) = green_notes_detect(cnt) - (detect_line + bar_width) / y_speed(kos) *y_spk
+loop
+
+
+notesel i_blue
+noteload ""+music_n+"\\"+diff+"\\"+music_n+"_b.dat"
+size_b = notemax
+
+dim  ensure_b				,size_b
+dim  y_blue					,size_b
+dim  blue_en				,size_b
+sdim blue_notes_detect_		,size_b
+dim  blue_notes_detect		,size_b
+
+repeat size_b
+	gosub *del_blue
+	noteget blue_notes_detect_(cnt), cnt
+	blue_notes_detect(cnt) = int(blue_notes_detect_(cnt))
+	blue_en(cnt) = blue_notes_detect(cnt) - (detect_line + bar_width) / y_speed(kos) *y_spk
+loop
+
+
+notesel i_yellow
+noteload ""+music_n+"\\"+diff+"\\"+music_n+"_y.dat"
+size_y = notemax
+
+dim ensure_y, size_y
+dim y_yellow	,size_y
+dim yellow_en	,size_y
+sdim yellow_notes_detect_		,size_y
+dim  yellow_notes_detect		,size_y
+
+repeat size_y
+	gosub *del_yellow
+	noteget yellow_notes_detect_(cnt), cnt
+	yellow_notes_detect(cnt) = int(yellow_notes_detect_(cnt))
+	yellow_en(cnt) = yellow_notes_detect(cnt) - (detect_line + bar_width) / y_speed(kos) *y_spk
+loop
+
+//////////////////////////////////////////////////score関連/////////////////////////////////////////////////////////////////////
+
+score_add = 10000 / (size_r + size_g + size_b + size_y)
+score_max = score_add * (size_r + size_g + size_b + size_y)
+gauge = 600
+
+notesel gaugePer
+noteload "com\\gauge.dat"
+noteget gPer_, 0
+gPer = int(gPer)
+
+exist music_n+"\\"+diff+"\\"+"high.dat"
+if (strsize == -1){
+	high_score = 0
+}else{
+	notesel hi
+	noteload music_n+"\\"+diff+"\\"+"high.dat"
+	noteget high_score_, 0
+	high_score = int(high_score_)
+}
+
+
+mci "play main"						//曲の初め
+mci "status main position"			//mciでmain音楽の再生時間を取得(stat変数にin)
+time_b = stat						//time_b(time_before)にstat変数を入れる
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//													メイン																	//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+*main
+repeat
+;fps_wait
+fps = d3getfps()
+
+redraw 0								//バッファ読み取り
+	gsel 0								//メインスクリーンに描写選択
+	pos 0, 0							//背景の座標設定
+	gmode 0
+	celput 1,0							//背景描写
+
+
+
+	mci "status main position"			//mciでmain音楽の再生時間を取得(stat変数にin)
+	time_n = stat						//time_n(time_now)にstat変数を入れる
+
+
+	if (red_t < size_r){
+		if (red_en(red_t) <= time_n){	//redBarを表示させるタイミング判定
+			ensure_r(red_t) = 1
+			red_t++
+		}
+	}
+
+	if (green_t < size_g){
+		if (green_en(green_t) <= time_n){
+			ensure_g(green_t) = 1
+			green_t++
+		}
+	}
+
+	if (blue_t < size_b){
+		if (blue_en(blue_t) <= time_n){
+			ensure_b(blue_t) = 1
+			blue_t++
+		}
+	}
+
+	if (yellow_t < size_y){
+		if (yellow_en(yellow_t) <= time_n){
+			ensure_y(yellow_t) = 1
+			yellow_t++
+		}
+	}
+
+
+	getkey key_a, 'A' : keydown_a = key_a ^ key_a_prev & key_a : key_a_prev = key_a
+	if (keydown_a) : detect_r = 1
+	getkey key_s, 'S' : keydown_s = key_s ^ key_s_prev & key_s : key_s_prev = key_s
+	if (keydown_s) : detect_g = 1
+	getkey key_k, 'K' : keydown_k = key_k ^ key_k_prev & key_k : key_k_prev = key_k
+	if (keydown_k) : detect_b = 1
+	getkey key_l, 'L' : keydown_l = key_l ^ key_l_prev & key_l : key_l_prev = key_l
+	if (keydown_l) : detect_y = 1
+	
+	getkey key_esc,27
+	if (key_esc) : stop
+
+
+	gosub *detect_red
+	gosub *detect_green
+	gosub *detect_blue
+	gosub *detect_yellow
+
+	gosub *detect_ui
+	
+
+	repeat 20
+		if (red_t <= 20) : red_et = cnt					//red_ensure_time
+		if (size_r <= cnt)	: red_et = size_r - 1
+		if (red_t >  20) : red_et = cnt + red_t - 20
+		if (ensure_r(red_et) == 1){
+			gosub *red_bar
+		}
+
+		if (green_t <= 20) : green_et = cnt
+		if (size_g <= cnt)	: green_et = size_g - 1
+		if (green_t >  20) : green_et = cnt + green_t - 20
+		if (ensure_g(green_et) == 1){
+			gosub *green_bar
+		}
+
+		if (blue_t <= 20) : blue_et = cnt
+		if (size_b <= cnt)	: blue_et = size_b - 1
+		if (blue_t >  20) : blue_et = cnt + blue_t - 20
+		if (ensure_b(blue_et) == 1){
+			gosub *blue_bar
+		}
+
+		if (yellow_t <= 20) : yellow_et = cnt
+		if (size_y <= cnt)	: yellow_et = size_y - 1
+		if (yellow_t >  20) : yellow_et = cnt + yellow_t - 20
+		if (ensure_y(yellow_et) == 1){
+			gosub *yellow_bar
+		}
+	loop
+
+
+		pos 1024,100						//FPS&SCORE表示
+	color 0,0,255
+	font msgothic,50
+	mes "FPS:"+fps
+	if (score >= score_max){
+		score = 10000
+		color $FF,0,0
+		mes "SCORE:"+score
+	}else{
+		if (score < 0){
+			score == 0
+		}
+		color 0,$FF,$FF
+		mes "SCORE:"+score
+
+	}
+	if (score >= high_score){
+		color $FF,0,0
+		high_score = score
+	}else{
+		color 0,$FF,$FF
+	}
+	mes "HIGH:"+high_score
+	color 0,$FF,$FF
+	
+	if(combo >= combo_max){
+		combo_max = combo
+		mes "MAX:"+combo_max
+	}else{
+		mes "MAX:"+combo_max
+	}
+	
+	color 0,0,$FF
+	mes time_n
+	mes size_r+size_g+size_b+size_y
+	color $FF,0,0
+	pos 1120, 500
+	mes "目\n指\nせ\nフ\nル\nコ\nン"
+	pos 1048,500
+	mes "や\nば\nい\nで\nす\nよ\n!!"
+
+	color 0,$FF,0
+	boxf 1048,988-gauge,1096,988	
+
+
+	if (time_n == music_size or gauge <= 0){						//曲の終了
+		notesel high
+		noteadd ""+high_score+"",0,1
+		notesave music_n+"\\"+diff+"\\high.dat"
+		cls 4
+		color 255,255,255
+		font "Georgia",80
+		pos 100,100 :	mes "Result"
+		pos 200,200 :	mes "Final Score: "+score
+		if(high_score == score){
+			color 255,0,0
+			mes "You draw \nwith the high score!!."
+			color 255,255,255
+		}
+						mes "  Max Combo: "+combo_max
+		if(combo == size_r + size_g + size_b + size_y){
+			color 255,0,0
+			mes "You get full combo!!!"
+		}
+		if (gauge <= 0){
+			color 0,0,130 : font "Georgia",80 : mes "GAME OVER" 
+		}
+		wait 500
+		end
+	}
+
+
+	
+	
+redraw 1								//スクリーン描画
+await
+loop
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//													初期化																	//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+*del_red
+x_red = 0										//赤ノーツのx座標
+y_red(cnt) = -bar_width								//同じくy座標
+
+return
+
+///////////////////////////////////////////////以下同じ////////////////////////////////////////////////
+
+*del_green
+x_green = 256
+y_green(cnt) = -bar_width
+
+return
+
+*del_blue
+x_blue = 512
+y_blue(cnt) = -bar_width
+
+return
+
+*del_yellow
+x_yellow = 768
+y_yellow(cnt) = -bar_width
+
+return
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//													ノーツ表示																//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+*red_bar
+	/*
+	if (kos == 0){
+		y_red(red_et) = (time_n - red_en(red_et)) *y_speed(kos) - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 1){
+		y_red(red_et) = (time_n - red_en(red_et)) *y_speed(kos) - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 2){
+		y_red(red_et) = (time_n - red_en(red_et)) *y_speed(kos) - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 3){
+		y_red(red_et) = (time_n - red_en(red_et)) *y_speed(kos) - 32
+	}else : if (kos == 4){
+		y_red(red_et) = (time_n - red_en(red_et)) *y_speed(kos) - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}*/
+	y_red(red_et) = (time_n - red_en(red_et)) *y_speed(kos) /y_spk - bar_width
+	if (y_red(red_et) >= 1024 + bar_width * 2) {	//少しゆとり持たせめ
+		ensure_r(red_et) = 0			//最下ラインまでノーツが来たら継続処理(ensure_rに1を入れる)を終了する
+		detect_ef	=	4
+		combo	=	0
+		red_dt++
+		miss_sum++
+	}
+	pos x_red, y_red(red_et)										//ノーツの座標を設定
+	gmode 2
+	gcopy 2, 0, 0, 256, 32											//ノーツを表示
+
+return
+
+///////////////////////////////////////////////以下同じ////////////////////////////////////////////////
+
+*green_bar
+	/*
+	if (kos == 0){
+		y_green(green_et) = (time_n - green_en(green_et)) /4 - 64	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 1){
+		y_green(green_et) = (time_n - green_en(green_et)) /2 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 2){
+		y_green(green_et) = (time_n - green_en(green_et)) *1 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 3){
+		y_green(green_et) = (time_n - green_en(green_et)) /2 *3 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 4){
+		y_green(green_et) = (time_n - green_en(green_et)) *2 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}*/
+	y_green(green_et) = (time_n - green_en(green_et)) *y_speed(kos) /y_spk - bar_width
+	if (y_green(green_et) >= 1024 + bar_width * 2) {
+		ensure_g(green_et) = 0
+		detect_ef	=	4
+		combo	=	0
+		miss_sum++
+	}
+	pos x_green, y_green(green_et)
+	gmode 2
+	gcopy 2, 0, 32, 256, 32
+
+return
+
+*blue_bar
+	/*
+	if (kos == 0){
+		y_blue(blue_et) = (time_n - blue_en(blue_et)) /4 - 64	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 1){
+		y_blue(blue_et) = (time_n - blue_en(blue_et)) /2 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 2){
+		y_blue(blue_et) = (time_n - blue_en(blue_et)) *1 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 3){
+		y_blue(blue_et) = (time_n - blue_en(blue_et)) /2 *3 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 4){
+		y_blue(blue_et) = (time_n - blue_en(blue_et)) *2 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}*/
+	y_blue(blue_et) = (time_n - blue_en(blue_et)) *y_speed(kos) /y_spk - bar_width
+	if (y_blue(blue_et) >= 1024 + bar_width * 2) {
+		ensure_b(blue_et) = 0
+		detect_ef	=	4
+		combo	=	0
+		miss_sum++
+	}
+	pos x_blue, y_blue(blue_et)
+	gmode 2
+	gcopy 2, 0, 64, 256, 32
+
+return
+
+*yellow_bar
+	/*
+	if (kos == 0){
+		y_yellow(yellow_et) = (time_n - yellow_en(yellow_et)) /4 - 64	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 1){
+		y_yellow(yellow_et) = (time_n - yellow_en(yellow_et)) /2 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 2){
+		y_yellow(yellow_et) = (time_n - yellow_en(yellow_et)) *1 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 3){
+		y_yellow(yellow_et) = (time_n - yellow_en(yellow_et)) /2 *3 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}else : if (kos == 4){
+		y_yellow(yellow_et) = (time_n - yellow_en(yellow_et)) *2 - 32	//Y座標を指定の速さ((今の音楽再生時間-ノーツの出た再生時間)*スピード)で増やす
+	}*/
+	y_yellow(yellow_et) = (time_n - yellow_en(yellow_et)) *y_speed(kos) /y_spk - bar_width
+	if (y_yellow(yellow_et) >= 1024 + bar_width * 2) {
+		ensure_y(yellow_et) = 0
+		detect_ef	=	4
+		combo	=	0
+		miss_sum++
+	}
+	pos x_yellow, y_yellow(yellow_et)
+	gmode 2
+	gcopy 2, 0, 96, 256, 32
+
+return
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//													判定処理																//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+*detect_red
+if (key_a){
+	color 110,110,255			//押したときに判定ラインの淵を青くする判定
+	boxf 0,detect_line-16,255,detect_line-5
+	boxf 0,detect_line+5,255,detect_line+16
+	color 30,30,255
+	boxf 0,detect_line-5,255,detect_line+5
+	;mci "play se from 270"
+}
+
+repeat 20
+	if (red_t <= 20)	: red_dt = cnt					//red_detect_time
+	if (size_r <= cnt)	: red_dt = size_r - 1
+	if (red_t >  20)	: red_dt = cnt + red_t - 20
+
+	if (ensure_r(red_dt) == 1){
+		if (keydown_a){
+
+			if (red_notes_detect(red_dt) >= time_n - 80 and red_notes_detect(red_dt) <= time_n + 80){		//GOOD
+				;減点処理？
+				;color 160,0,0
+				;boxf 100,0,150,1024
+				ensure_r(red_dt) = 0
+				score += score_add / 2
+				detect_ef	=	1
+				combo += 1
+			}
+				
+				if (red_notes_detect(red_dt) >= time_n - 60 and red_notes_detect(red_dt) <= time_n + 60){		//COOL
+					;GOOD判定処理
+						;color $FF,$FF,$FF
+						;boxf 100,0,150,1024
+						ensure_r(red_dt) = 0
+						score += score_add / 4
+						detect_ef	=	2
+				}
+
+					if (red_notes_detect(red_dt) >= time_n - 40 and red_notes_detect(red_dt) <= time_n + 40){		//GREAT
+						;COOL判定処理
+						;color 0,200,$FF
+						;boxf 100,0,150,1024
+						ensure_r(red_dt) = 0
+						score += score_add / 4
+						detect_ef	=	3
+					}
+				}
+			}
+loop
+return
+
+*detect_green
+if (key_s){
+	color 110,110,255
+	boxf 256,detect_line-16,511,detect_line-5
+	boxf 256,detect_line+5,511,detect_line+16
+	color 30,30,255
+	boxf 256,detect_line-5,511,detect_line+5
+	;mci "play se from 270"
+}
+
+repeat 20
+	if (green_t <= 20)	: green_dt = cnt					//green_detect_time
+	if (size_g <= cnt)	: green_dt = size_g - 1
+	if (green_t >  20)	: green_dt = cnt + green_t - 20
+	if (ensure_g(green_dt) == 1){
+
+		if (green_notes_detect(green_dt) >= time_n - 80 and green_notes_detect(green_dt) <= time_n + 80){		//GOOD
+			;減点処理？
+			if (detect_g == 1){
+				;color 160,0,0
+				;boxf 351,0,400,1024
+				ensure_g(green_dt) = 0
+				score += score_add / 2
+				detect_ef	=	1
+				combo += 1
+			}
+	}
+		if (green_notes_detect(green_dt) >= time_n - 60 and green_notes_detect(green_dt) <= time_n + 60){		//GOOD
+			;GOOD判定処理
+			if (detect_g == 1){
+				;color $FF,$FF,$FF
+				;boxf 351,0,400,1024
+				ensure_g(green_dt) = 0
+				score += score_add / 4
+				detect_ef	=	2
+			}
+		}
+		if (green_notes_detect(green_dt) >= time_n - 40 and green_notes_detect(green_dt) <= time_n + 40){		//COOL
+			;COOL判定処理
+			if (detect_g == 1){
+				;color 0,200,$FF
+				;boxf 351,0,400,1024
+				ensure_g(green_dt) = 0
+				score += score_add / 4
+				detect_ef	=	3
+			}
+		}
+	}
+loop
+detect_g = 0
+return
+
+*detect_blue
+if (key_k){
+	color 110,110,255
+	boxf 512,detect_line-16,767,detect_line-5
+	boxf 512,detect_line+5,767,detect_line+16
+	color 30,30,255
+	boxf 512,detect_line-5,767,detect_line+5
+	;mci "play se from 270"
+}
+
+repeat 20
+	if (blue_t <= 20)	: blue_dt = cnt					//red_detect_time
+	if (size_b <= cnt)	: blue_dt = size_b - 1
+	if (blue_t >  20)	: blue_dt = cnt + blue_t - 20
+	if (ensure_b(blue_dt) == 1){
+
+		if (blue_notes_detect(blue_dt) >= time_n - 80 and blue_notes_detect(blue_dt) <= time_n + 80){		//GOOD
+			;GOOD
+			if (detect_b == 1){
+				;color 160,0,0
+				;boxf 601,0,650,1024
+				ensure_b(blue_dt) = 0
+				score += score_add / 2
+				detect_ef	=	1
+				combo += 1
+			}
+
+				if (blue_notes_detect(blue_dt) >= time_n - 60 and blue_notes_detect(blue_dt) <= time_n + 60){		//COOL
+					;COOL判定処理
+					if (detect_b == 1){
+						;color $FF,$FF,$FF
+						;boxf 601,0,650,1024
+						ensure_b(blue_dt) = 0
+						score += score_add / 4
+						detect_ef	=	2
+					}
+					
+						if (blue_notes_detect(blue_dt) >= time_n - 40 and blue_notes_detect(blue_dt) <= time_n + 40){		//GREAT
+							;GREAT判定処理
+								if (detect_b == 1){
+								;color 0,200,$FF
+								;boxf 601,0,650,1024
+								ensure_b(blue_dt) = 0
+								score += score_add / 4
+								detect_ef	=	3
+							}
+
+
+							}
+						}
+					}
+	}
+loop
+detect_b = 0
+return
+
+*detect_yellow
+if (key_l){
+	color 110,110,255
+	boxf 768,detect_line-16,1023,detect_line-5
+	boxf 768,detect_line+5,1023,detect_line+16
+	color 30,30,255
+	boxf 768,detect_line-5,1023,detect_line+5
+	;mci "play se from 270"
+}
+
+repeat 20
+	if (yellow_t <= 20)	: yellow_dt = cnt					//red_detect_time
+	if (size_y <= cnt)	: yellow_dt = size_y - 1
+	if (yellow_t >  20)	: yellow_dt = cnt + yellow_t - 20
+	if (ensure_y(yellow_dt) == 1){
+
+		if (yellow_notes_detect(yellow_dt) >= time_n - 80 and yellow_notes_detect(yellow_dt) <= time_n + 80){		//GOOD
+			;減点処理？
+			if (detect_y == 1){
+				;color 160,0,0
+				;boxf 851,0,900,1024
+				ensure_y(yellow_dt) = 0
+				score += score_add	/ 2
+				detect_ef	=	1
+				combo += 1
+				
+			}
+			
+				if (yellow_notes_detect(yellow_dt) >= time_n - 60 and yellow_notes_detect(yellow_dt) <= time_n + 60){		//COOL
+					;GOOD判定処理
+					if (detect_y == 1){
+						;color $FF,$FF,$FF
+						;boxf 851,0,900,1024
+						ensure_y(yellow_dt) = 0
+						score += score_add / 4
+						detect_ef	=	2
+					}
+
+					if (yellow_notes_detect(yellow_dt) >= time_n - 40 and yellow_notes_detect(yellow_dt) <= time_n + 40){		//GREAT
+						;COOL判定処理
+						if (detect_y == 1){
+							;color 0,200,$FF
+							;boxf 851,0,900,1024
+							ensure_y(yellow_dt) = 0
+							score += score_add / 4
+							detect_ef	=	3
+						}
+
+					}
+				}
+		}
+	
+	}
+loop
+detect_y = 0
+return
+
+
+*detect_ui
+	pos 300,300
+	font "Georgia",80
+	switch detect_ef
+		case 1
+			color 0,255,255
+			mes "GOOD    "+combo
+			;gauge -= score_add / 2
+		swbreak
+		case 2
+			color 200,20,130
+			mes "COOL    "+combo
+		swbreak
+		case 3
+			color 255,215,0
+			mes "GREAT   "+combo
+		swbreak
+		case 4
+			color 0,0,160
+			mes "MISS    "+miss_sum 
+			miss_cnt++
+			if (miss_cnt >= score_add * (size_r + size_g + size_b + size_y) / 4*3 / 600){
+				gauge--
+				miss_cnt = 0
+			}
+		swbreak
+	swend
+	
+return

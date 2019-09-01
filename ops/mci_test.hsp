@@ -1,0 +1,23 @@
+mci "open ÅI‹S’{–…ƒtƒ‰ƒ“ƒh[ƒ‹E‚r.wav alias main"
+mci "set main time format ms"
+mci "play main"
+
+mci "status main position"
+time_b = stat
+
+randomize
+
+
+repeat
+x = rnd(400)
+y = rnd(200)
+mci "status main position"
+time_n = stat
+if (time_n - time_b = 100) {
+	pos x,y
+	agb = time_n - time_b
+	mes agb
+	time_b = time_n
+}
+await
+loop
